@@ -10,8 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /lib/apt/lists/*
 
 # 3. 安裝 aiomqtt 與必要套件
-RUN pip3 install --no-cache-dir aiomqtt setuptools
-
+RUN pip3 install --no-cache-dir --break-system-packages aiomqtt setuptools
 # 4. 將當前專案原始碼複製進容器內部
 COPY . .
 
