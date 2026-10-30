@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROS 2 與 MQTT FMS 橋接系統建置與測試技術手冊</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 1.8rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3rem;
+        }
+        h3 {
+            color: #2980b9;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.9em;
+            color: #c7254e;
+        }
+        pre {
+            background-color: #2d2d2d;
+            color: #ccc;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: Consolas, Monaco, monospace;
+        }
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        blockquote {
+            margin: 1rem 0;
+            padding: 0.8rem 1rem;
+            background-color: #eef9ff;
+            border-left: 4px solid #3498db;
+            color: #2c3e50;
+            border-radius: 0 4px 4px 0;
+        }
+        ul, ol {
+            padding-left: 1.5rem;
+        }
+        li {
+            margin-bottom: 0.5rem;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #eee;
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p>這是一份為您整理的 <strong>ROS 2 與 MQTT (Mosquitto) 容器化 FMS 橋接系統</strong> 從部署到實際測試的完整系統性說明文件。內容涵蓋架構設計、環境與網路配置、防火牆調校以及雙向通訊驗證的完整實務指南。</p>
+
+        <h1>🤖 ROS 2 與 MQTT FMS 橋接系統建置與測試技術手冊</h1>
+
+        <h2>一、 系統架構與設計理念</h2>
+        <p>本系統旨在建立一個高可移植、支援從「單機容器測試」無縫遷移至「獨立生產主機」的車隊管理系統（FMS）通訊橋接架構。</p>
+        <ul>
+            <li><strong>通訊核心</strong>：採用 <code>MQTT</code> 作為跨網路層的輕量化傳輸協議，底層透過非同步 Python 庫 (<code>aiomqtt</code>) 確保 ROS 2 與 MQTT 事件迴圈流暢執行。</li>
+            <li><strong>部署策略</strong>：
+                <ul>
+                    <li><strong>Broker 端</strong>：獨立運行於 Mosquitto 容器中，透過 <code>0.0.0.0</code> 監聽所有網路介面，適應未來獨立主機的擴展需求。</li>
+                    <li><strong>節點端</strong>：ROS 2 橋接器（包含調度端與機器人端）透過環境變數（<code>.env</code>）動態綁定目標 Broker IP 與連接埠，確保未來更換伺服器時<strong>完全無需修改程式碼</strong>。</li>
+                </ul>
+            </li>
+        </ul>
+
+        <hr>
+
+        <h2>二、 部署步驟與網路架構設定</h2>
+        <h3>1. MQTT Broker (Mosquitto) 設定</h3>
+        <p>確保 Mosquitto 容器的設定檔（<code>mosquitto.conf</code>）正確開啟對外監聽，以支援多介面與跨網段連線：</p>
+        <pre><code>listener 8001 0.0.0.0
+listener 8883 0.0.0.0
+allow_anonymous false
+password_file /mosquitto/config/passwd
+acl_file /mosquitto/config/acl</code></pre>
+
+        <h3>2. 環境變數設定 (<code>.env</code>)</h3>
+        <p>在開發與測試階段，容器與 Broker 位於同一台宿主機但獨立運作時，採用 Docker 預設的網關 IP 進行內部互聯：</p>
+        <pre><code>MQTT_BROKER_IP=172.17.0.1
+MQTT_BROKER_PORT=8001
+MQTT_USERNAME=fms_server
+MQTT_PASSWORD=fms_server123</code></pre>
+
+        <blockquote>
+            💡 <strong>未來遷移指南</strong>：當 Broker 獨立部署至不同實體伺服器（例如 <code>10.57.54.250</code>）時，僅需將此處的 <code>MQTT_BROKER_IP</code> 替換為新主機的真實 IP，並重啟容器即可完成遷移。
+        </blockquote>
+
+        <hr>
+
+        <h2>三、 網路與防火牆（UFW）除錯關鍵</h2>
+        <p>在早期測試中，常因容器存取宿主機 Port 遭到拒絕而引發 <code>timed out</code> 逾時錯誤。透過系統日誌交叉比對，確認了解決此問題的關鍵步驟：</p>
+        <ol>
+            <li><strong>UFW 防火牆規則放行</strong>：<br>
+                Linux 主機的 UFW 預設阻擋所有外部進來（<code>deny incoming</code>）的連線。必須針對 Docker 容器內部的橋接網段進行放行，允許其存取 MQTT 的 <code>8001</code> 埠：
+                <pre><code>sudo ufw allow from 172.16.0.0/12 to any port 8001 proto tcp</code></pre>
+            </li>
+            <li><strong>通訊狀態驗證</strong>：<br>
+                當規則生效後，Mosquitto 日誌會顯示來自 Docker 內網（如 <code>172.21.0.1</code>）的成功連線（<code>New client connected</code>），且 MQTT 內建的心跳機制（<code>PINGREQ</code> / <code>PINGRESP</code>）會開始穩定交替，代表雙方通道完全打通。
+            </li>
+        </ol>
+
+        <hr>
+
+        <h2>四、 雙向通訊驗證與實測指令</h2>
+        <p>系統上線後，可透過以下 ROS 2 指令與對應的節點驗證雙向資料流：</p>
+
+        <h3>1. 調度端發布測試（FMS 發送指令給機器人）</h3>
+        <ul>
+            <li><strong>對應程式碼</strong>：<code>fms_mqtt_publisher_node.py</code>（訂閱 <code>/fms/command_to_send</code>，轉發至 <code>fms/robots/robot_01/command</code>）</li>
+            <li><strong>測試指令</strong>：
+                <pre><code>ros2 topic pub --once /fms/command_to_send std_msgs/msg/String "{data: 'Hello FMS MQTT'}"</code></pre>
+            </li>
+        </ul>
+
+        <h3>2. 機器人端發布與接收測試（AMR 回報狀態與接收控制）</h3>
+        <ul>
+            <li><strong>狀態發布端</strong>：<code>robot_mqtt_publisher_node.py</code>（訂閱 <code>/amr/status</code>，轉發至 <code>fms/robots/robot_01/status</code>）</li>
+            <li><strong>指令接收端</strong>：<code>robot_mqtt_subscriber_node.py</code>（訂閱 <code>fms/robots/robot_01/command</code>，轉發至 <code>/amr/command</code>）</li>
+        </ul>
+    </div>
+</body>
+</html>
