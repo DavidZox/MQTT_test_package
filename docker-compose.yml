@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  fms_dispatch_system:
+    build: .
+    container_name: fms_hub
+    environment:
+      - MQTT_BROKER_IP=${MQTT_BROKER_IP}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+    restart: always
