@@ -3,9 +3,6 @@ services:
   fms_dispatch_system:
     build: .
     container_name: fms_hub
-    environment:
-      - MQTT_BROKER_IP=${MQTT_BROKER_IP}
-      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
-      - MQTT_USERNAME=${MQTT_USERNAME}
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
+    env_file:
+      - .env   # 自動載入 .env 檔案中的所有變數
     restart: always

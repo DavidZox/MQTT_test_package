@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import os
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -9,11 +10,11 @@ class FmsMqttSubscriberNode(Node):
     def __init__(self):
         super().__init__('fms_mqtt_subscriber_node')
         
-        # 參數設定（測試階段使用明文連接埠 8001）
-        self.declare_parameter('broker_ip', '10.57.54.201')
-        self.declare_parameter('broker_port', 8001)
-        self.declare_parameter('username', 'fms_server')
-        self.declare_parameter('password', 'fms_secure_password')
+        # 宣告參數（預設值改為讀取環境變數，若 Launch 有傳參數則會被 Launch 覆蓋）
+        self.declare_parameter('broker_ip', os.getenv('MQTT_BROKER_IP', '10.57.54.201'))
+        self.declare_parameter('broker_port', int(os.getenv('MQTT_BROKER_PORT', 8001)))
+        self.declare_parameter('username', os.getenv('MQTT_USERNAME', 'fms_server'))
+        self.declare_parameter('password', os.getenv('MQTT_PASSWORD', 'fms_server123'))
         
         self.broker_ip = self.get_parameter('broker_ip').value
         self.broker_port = self.get_parameter('broker_port').value
